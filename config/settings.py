@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     azure_openai_api_key: str = ""
     azure_openai_deployment: str = "gpt-5-nano"
     azure_openai_api_version: str = "2024-12-01-preview"
+    # Embedding (can use a different endpoint/key if needed)
+    azure_openai_embedding_endpoint: str = ""
+    azure_openai_embedding_api_key: str = ""
     azure_openai_embedding_deployment: str = "text-embedding-ada-002"
 
     # Git

@@ -10,14 +10,15 @@ def create_chat_llm(temperature: float = 0):
     if settings.llm_provider == "azure_openai":
         from langchain_openai import AzureChatOpenAI
 
-        return AzureChatOpenAI(
+        kwargs = dict(
             azure_endpoint=settings.azure_openai_endpoint,
             api_key=settings.azure_openai_api_key,
             azure_deployment=settings.azure_openai_deployment,
             api_version=settings.azure_openai_api_version,
-            temperature=temperature,
             timeout=120,
         )
+        # gpt-5-nano only supports default temperature (1)
+        return AzureChatOpenAI(**kwargs)
     else:
         from langchain_ollama import ChatOllama
 
@@ -59,9 +60,12 @@ def create_llama_embedding():
     if settings.llm_provider == "azure_openai":
         from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
 
+        embed_endpoint = settings.azure_openai_embedding_endpoint or settings.azure_openai_endpoint
+        embed_key = settings.azure_openai_embedding_api_key or settings.azure_openai_api_key
+
         return AzureOpenAIEmbedding(
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_api_key,
+            azure_endpoint=embed_endpoint,
+            api_key=embed_key,
             azure_deployment=settings.azure_openai_embedding_deployment,
             api_version=settings.azure_openai_api_version,
         )
