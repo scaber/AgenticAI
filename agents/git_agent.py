@@ -20,6 +20,7 @@ class GitAgent:
         changes: list[dict],
         commit_message: str,
         review_summary: str,
+        labels: list[str] | None = None,
     ) -> dict:
         branch_name = self._generate_branch_name(work_item_id, work_item_title)
         logger.info("git_agent_starting", branch=branch_name, work_item_id=work_item_id)
@@ -40,6 +41,7 @@ class GitAgent:
             source_branch=branch_name,
             target_branch="dev",
             work_item_id=work_item_id,
+            labels=labels or [],
         )
 
         settings = get_settings()

@@ -1,7 +1,9 @@
+import difflib
 import structlog
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from config import create_chat_llm
+from services import GitService
 from models import ReviewResult
 
 logger = structlog.get_logger()
@@ -26,6 +28,7 @@ Yapılan kod değişikliklerini aşağıdaki kriterlere göre incele:
 class ReviewAgent:
     def __init__(self):
         self._llm = create_chat_llm(temperature=0)
+        self._git_service = GitService()
 
     def review(self, analysis: str, changes: list[dict]) -> ReviewResult:
         logger.info("reviewing_changes", num_changes=len(changes))
@@ -49,13 +52,43 @@ Bu değişiklikleri incele.
         return result
 
     def _format_changes(self, changes: list[dict]) -> str:
+        """Değişiklikleri diff formatında gösterir.
+        ReviewAgent'a dosyanın tamamı yerine sadece değişen satırları gönderir."""
         parts = []
         for change in changes:
-            parts.append(f"--- {change.get('file_path', 'unknown')} ---")
+            file_path = change.get("file_path", "unknown")
+            parts.append(f"--- {file_path} ---")
             parts.append(f"Açıklama: {change.get('change_description', '')}")
-            parts.append(f"Yeni İçerik:\n{change.get('new_content', '')[:2000]}")
+
+            new_content = change.get("new_content", "")
+            operation = change.get("operation", "modify")
+
+            if operation == "create":
+                # Yeni dosya — tamamını göster (kısıtlı)
+                parts.append(f"[YENİ DOSYA]\n{new_content[:3000]}")
+            else:
+                # Mevcut dosya — diff göster
+                original = self._git_service.get_file_content(file_path)
+                if original:
+                    diff = self._generate_diff(original, new_content, file_path)
+                    parts.append(f"Değişiklikler (diff):\n{diff[:3000]}")
+                else:
+                    parts.append(f"Yeni İçerik:\n{new_content[:2000]}")
             parts.append("")
         return "\n".join(parts)
+
+    def _generate_diff(self, original: str, new_content: str, file_path: str) -> str:
+        """İki içerik arasındaki unified diff'i döndürür."""
+        original_lines = original.splitlines(keepends=True)
+        new_lines = new_content.splitlines(keepends=True)
+        diff = difflib.unified_diff(
+            original_lines,
+            new_lines,
+            fromfile=f"a/{file_path}",
+            tofile=f"b/{file_path}",
+            n=3,
+        )
+        return "".join(diff)
 
     def _parse_review(self, content: str) -> ReviewResult:
         approved = "EVET" in content.upper().split("ONAY")[1][:20] if "ONAY" in content.upper() else False

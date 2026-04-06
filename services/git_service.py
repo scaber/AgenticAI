@@ -6,11 +6,22 @@ from config import get_settings
 
 logger = structlog.get_logger()
 
+# Yazma işlemlerinde izin verilen dizinler (repo kökünden göreceli)
+ALLOWED_WRITE_DIRS = {"src", "tests", "test", "lib", "app", "Api", "Services", "Models", "Controllers", "Repositories"}
+
+# Dokunulmaması gereken dosya/dizin desenleri
+FORBIDDEN_PATTERNS = {".git", ".env", ".github", "node_modules", "bin", "obj", ".vscode", ".vs"}
+
+
+class PathSecurityError(Exception):
+    """Güvenlik kontrolünden geçemeyen dosya yolu hatası."""
+    pass
+
 
 class GitService:
     def __init__(self):
         settings = get_settings()
-        self._repo_path = settings.git_repo_path
+        self._repo_path = os.path.realpath(settings.git_repo_path)
         self._remote_url = settings.git_remote_url
         self._repo: Repo | None = None
 
@@ -18,6 +29,38 @@ class GitService:
         if self._repo is None:
             self._repo = Repo(self._repo_path)
         return self._repo
+
+    def _validate_path(self, file_path: str, *, write: bool = False) -> str:
+        """Dosya yolunun güvenli olduğunu doğrular.
+
+        - Repo dizini dışına çıkmayı engeller (path traversal koruması).
+        - write=True ise yasak dosya/dizin desenlerini kontrol eder.
+        - Mutlak (resolved) yolu döndürür.
+        """
+        # Normalize ve resolve
+        joined = os.path.join(self._repo_path, file_path)
+        resolved = os.path.realpath(joined)
+
+        # Path traversal kontrolü
+        if not resolved.startswith(self._repo_path + os.sep) and resolved != self._repo_path:
+            raise PathSecurityError(
+                f"Güvenlik ihlali: '{file_path}' repo dizini dışına çıkıyor. "
+                f"Resolved: {resolved}, Repo: {self._repo_path}"
+            )
+
+        # Yazma işlemi için ek güvenlik kontrolleri
+        if write:
+            rel = os.path.relpath(resolved, self._repo_path)
+            parts = rel.replace("\\", "/").split("/")
+
+            # Yasak dizin/dosya kontrolü
+            for part in parts:
+                if part in FORBIDDEN_PATTERNS:
+                    raise PathSecurityError(
+                        f"Güvenlik ihlali: '{file_path}' yasak bir dizin/dosya içeriyor: '{part}'"
+                    )
+
+        return resolved
 
     def create_branch(self, branch_name: str, base_branch: str = "dev") -> None:
         repo = self._get_repo()
@@ -42,14 +85,18 @@ class GitService:
         modified_files = []
 
         for change in changes:
-            file_path = os.path.join(self._repo_path, change["file_path"])
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            file_path = change["file_path"]
 
-            with open(file_path, "w", encoding="utf-8") as f:
+            # Güvenlik doğrulaması
+            resolved = self._validate_path(file_path, write=True)
+
+            os.makedirs(os.path.dirname(resolved), exist_ok=True)
+
+            with open(resolved, "w", encoding="utf-8") as f:
                 f.write(change["new_content"])
 
-            modified_files.append(change["file_path"])
-            logger.info("file_modified", path=change["file_path"])
+            modified_files.append(file_path)
+            logger.info("file_modified", path=file_path)
 
         return modified_files
 
@@ -67,7 +114,12 @@ class GitService:
         return str(commit)
 
     def get_file_content(self, file_path: str) -> str | None:
-        full_path = os.path.join(self._repo_path, file_path)
+        try:
+            full_path = self._validate_path(file_path, write=False)
+        except PathSecurityError:
+            logger.warning("path_security_blocked_read", file=file_path)
+            return None
+
         if not os.path.isfile(full_path):
             return None
         with open(full_path, "r", encoding="utf-8") as f:

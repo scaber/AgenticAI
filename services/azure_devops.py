@@ -69,11 +69,48 @@ class AzureDevOpsService:
         if pr_details.work_item_id:
             pr.work_item_refs = [{"id": str(pr_details.work_item_id)}]
 
+        # Etiketler varsa PR başlığına prefix olarak ekle
+        if pr_details.labels:
+            label_prefix = " ".join(f"[{label}]" for label in pr_details.labels)
+            pr.title = f"{label_prefix} {pr.title}"
+            # Etiket bilgisini açıklamaya da ekle
+            label_section = "\n".join(f"- ⚠️ **{label}**" for label in pr_details.labels)
+            pr.description = f"### Etiketler\n{label_section}\n\n{pr.description}"
+
         created_pr = self._git_client.create_pull_request(
             pr, repo_name, project=self._project
         )
-        logger.info("pull_request_created", pr_id=created_pr.pull_request_id, title=pr_details.title)
+
+        # Azure DevOps PR Labels API ile etiketleri ayrıca ekle
+        if pr_details.labels:
+            self._add_pr_labels(
+                repo_name,
+                created_pr.pull_request_id,
+                pr_details.labels,
+            )
+
+        logger.info(
+            "pull_request_created",
+            pr_id=created_pr.pull_request_id,
+            title=pr_details.title,
+            labels=pr_details.labels,
+        )
         return created_pr.pull_request_id
+
+    def _add_pr_labels(self, repo_name: str, pr_id: int, labels: list[str]) -> None:
+        """PR'a Azure DevOps label'ları ekler."""
+        try:
+            for label_name in labels:
+                self._git_client.create_pull_request_label(
+                    {"name": label_name},
+                    repo_name,
+                    pr_id,
+                    project=self._project,
+                )
+            logger.info("pr_labels_added", pr_id=pr_id, labels=labels)
+        except Exception as e:
+            # Label ekleme başarısız olursa PR oluşturma işlemini engelleme
+            logger.warning("pr_labels_failed", pr_id=pr_id, error=str(e))
 
     def get_repositories(self) -> list[dict]:
         repos = self._git_client.get_repositories(self._project)

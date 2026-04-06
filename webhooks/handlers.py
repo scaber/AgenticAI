@@ -61,6 +61,13 @@ async def run_agent_pipeline(work_item_id: int):
                     for c in changes:
                         print(f"      - {c.get('file_path', '?')}: {c.get('change_description', '')[:100]}")
 
+                elif node_name == "test_code":
+                    test_passed = node_output.get("test_passed", False)
+                    test_result = node_output.get("test_result", "")
+                    print(f"   🧪 Test sonucu: {'✅ BAŞARILI' if test_passed else '❌ BAŞARISIZ'}")
+                    if test_result:
+                        print(f"   {test_result[:300]}")
+
                 elif node_name == "review_code":
                     review = node_output.get("review_result", {})
                     approved = node_output.get("review_approved", False)

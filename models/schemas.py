@@ -44,6 +44,7 @@ class PRDetails(BaseModel):
     source_branch: str
     target_branch: str = "dev"
     work_item_id: int | None = None
+    labels: list[str] = Field(default_factory=list)
 
 
 class WebhookPayload(BaseModel):
