@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  ai-pr-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-pr-agent
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      - GIT_REPO_PATH=/workspace/target-repo
+    volumes:
+      # Target repo — container dışından mount edilir
+      - ${GIT_REPO_PATH:-./_workspace}:/workspace/target-repo
+      # RAG index kalıcılığı
+      - index-store:/workspace/target-repo/.index_store
+      # Git credentials (opsiyonel — Azure DevOps PAT ile HTTPS auth)
+      - ${GIT_CREDENTIAL_HELPER_PATH:-/dev/null}:/home/agent/.gitconfig:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/webhooks/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  index-store:
+    driver: local

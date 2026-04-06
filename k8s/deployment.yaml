@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-pr-agent
+  namespace: ai-pr-agent
+  labels:
+    app.kubernetes.io/name: ai-pr-agent
+    app.kubernetes.io/version: "0.2.0"
+spec:
+  replicas: 1      # Tek repo üzerinde çalıştığı için 1 replica yeterli
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ai-pr-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ai-pr-agent
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: ai-pr-agent
+          image: your-registry.azurecr.io/ai-pr-agent:0.2.0
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: ai-pr-agent-config
+            - secretRef:
+                name: ai-pr-agent-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace/target-repo
+            - name: index-store
+              mountPath: /workspace/target-repo/.index_store
+          livenessProbe:
+            httpGet:
+              path: /webhooks/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /webhooks/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /webhooks/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ai-pr-agent-workspace
+        - name: index-store
+          persistentVolumeClaim:
+            claimName: ai-pr-agent-index
+      imagePullSecrets:
+        - name: acr-pull-secret    # Azure Container Registry pull secret

@@ -1,0 +1,49 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+dist
+build
+
+# IDE
+.vscode
+.vs
+.idea
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Docs / CI
+README.md
+LICENSE
+*.md
+.github
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Index store (rebuilt inside container)
+.index_store
+
+# Workspace mounts
+_workspace

@@ -1,5 +1,8 @@
 import structlog
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from config import get_settings
 from webhooks.handlers import router as webhook_router
@@ -20,10 +23,42 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
+logger = structlog.get_logger()
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Startup / shutdown lifecycle."""
+    settings = get_settings()
+    logger.info(
+        "app_starting",
+        version="0.2.0",
+        llm_provider=settings.llm_provider,
+        repo_path=settings.git_repo_path,
+    )
+    yield
+    logger.info("app_shutting_down")
+
+
 app = FastAPI(
     title="AI PR Agent",
     description="AI-Powered Azure DevOps Agent: Autonomous PR Engine",
-    version="0.1.0",
+    version="0.2.0",
+    lifespan=lifespan,
+    docs_url="/docs" if get_settings().log_level.upper() == "DEBUG" else None,
+    redoc_url=None,
+)
+
+# --- Middleware ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],   # Production'da kısıtla
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["*"],   # Production'da kısıtla
 )
 
 app.include_router(webhook_router)
@@ -33,8 +68,7 @@ app.include_router(webhook_router)
 async def root():
     return {
         "name": "AI PR Agent",
-        "version": "0.1.0",
-        "docs": "/docs",
+        "version": "0.2.0",
     }
 
 

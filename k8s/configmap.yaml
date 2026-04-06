@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-pr-agent-config
+  namespace: ai-pr-agent
+data:
+  AZURE_DEVOPS_ORG_URL: "https://dev.azure.com/your-org"
+  AZURE_DEVOPS_PROJECT: "your-project"
+  LLM_PROVIDER: "azure_openai"
+  AZURE_OPENAI_ENDPOINT: "https://your-resource.openai.azure.com/"
+  AZURE_OPENAI_DEPLOYMENT: "gpt-5-nano"
+  AZURE_OPENAI_API_VERSION: "2024-12-01-preview"
+  AZURE_OPENAI_EMBEDDING_DEPLOYMENT: "text-embedding-ada-002"
+  GIT_REPO_PATH: "/workspace/target-repo"
+  GIT_REMOTE_URL: "https://dev.azure.com/your-org/your-project/_git/your-repo"
+  LOG_LEVEL: "INFO"
+  PORT: "8000"
